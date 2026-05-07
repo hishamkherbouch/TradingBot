@@ -45,6 +45,7 @@ Backtest assumptions include:
 |-- setup_db.py          # Drops and recreates the Postgres schema
 |-- requirements.txt     # Python dependencies
 |-- .env.example         # Required environment variables
+|-- tests/               # Unit tests for pure strategy and metrics logic
 |-- data/
 |   |-- sp500.csv
 |   `-- sp500_changes.csv
@@ -241,7 +242,13 @@ Environment variables:
 
 ## Development
 
-There is no dedicated test suite yet. A quick syntax check is:
+Run the unit tests:
+
+```bash
+python -m unittest discover -s tests
+```
+
+A quick syntax check is:
 
 ```bash
 python -m py_compile setup_db.py backtest.py dashboard.py live.py src/*.py
