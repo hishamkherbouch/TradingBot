@@ -1,0 +1,8 @@
+alpaca-py
+pandas
+numpy
+matplotlib
+psycopg2-binary
+python-dotenv
+lxml
+yfinance
