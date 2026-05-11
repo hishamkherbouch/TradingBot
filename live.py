@@ -8,6 +8,7 @@ notional orders fill same-session):
     0 14 * * 1-5  cd /path/to/repo && .venv/bin/python live.py >> live.log 2>&1
 """
 
+import argparse
 import os
 from datetime import date, timedelta
 
@@ -41,12 +42,27 @@ def _refresh_prices(today: date) -> None:
         db.insert_prices(df)
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Run the TradingBot live paper-trading flow.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force a rebalance even if today is not the month's first trading day.",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = _parse_args()
     today = date.today()
     print(f"[live] {today}: starting daily run")
 
-    api_key = os.environ["ALPACA_API_KEY"]
-    secret_key = os.environ["ALPACA_SECRET_KEY"]
+    api_key = os.environ.get("ALPACA_API_KEY", "").strip()
+    secret_key = os.environ.get("ALPACA_SECRET_KEY", "").strip()
+    if not api_key or not secret_key:
+        raise SystemExit(
+            "Missing Alpaca credentials. Set ALPACA_API_KEY and ALPACA_SECRET_KEY in .env before running live.py."
+        )
     trading_client = TradingClient(api_key, secret_key, paper=True)
 
     # 1-2. Refresh prices and reload the wide frame (need a long history so
@@ -70,9 +86,11 @@ def main():
     rebal_dates = set(signals.month_start_rebalance_dates(
         prices_wide.index, prices_wide.index.min(), today_ts,
     ))
-    if today_ts not in rebal_dates:
+    if today_ts not in rebal_dates and not args.force:
         print(f"[live] {today_ts.date()} is not the month's first trading day — no rebalance.")
         return
+    if today_ts not in rebal_dates and args.force:
+        print(f"[live] forcing rebalance on {today_ts.date()} (not the month's first trading day)")
 
     # 4. Compute target portfolio.
     eligible = [t for t in UNIVERSE if t in prices_wide.columns]

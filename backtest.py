@@ -181,10 +181,13 @@ def main():
 
     # Wipe prior backtest state so reruns don't leave orphan trades/snapshots
     # mixing across windows.
-    with db.get_conn() as conn, conn.cursor() as cur:
+    with db.get_conn() as conn:
+        cur = conn.cursor()
         cur.execute("DELETE FROM trades WHERE source='backtest'")
         cur.execute("DELETE FROM portfolio_snapshots WHERE source='backtest'")
         cur.execute("DELETE FROM signals")
+        conn.commit()
+        cur.close()
 
     # Three disjoint regimes. No parameter tuning between windows — same
     # 12-1 momentum, top-5, equal-weight, monthly rebalance, 5 bps per side

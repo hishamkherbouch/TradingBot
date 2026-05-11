@@ -155,9 +155,11 @@ def seed_yfinance(start=HIST_START, end=HIST_END, only_missing: bool = False) ->
     """
     tickers = list(UNIVERSE) + [BENCHMARK]
     if only_missing:
-        with db.get_conn() as conn, conn.cursor() as cur:
+        with db.get_conn() as conn:
+            cur = conn.cursor()
             cur.execute("SELECT DISTINCT ticker FROM prices")
             existing = {row[0] for row in cur.fetchall()}
+            cur.close()
         tickers = [t for t in tickers if t not in existing]
         print(f"Skipping {len(existing)} tickers already in DB; fetching {len(tickers)} new ones.")
 
@@ -193,9 +195,11 @@ def seed_database(start, end, only_missing: bool = False) -> int:
     """
     tickers = list(UNIVERSE) + [BENCHMARK]
     if only_missing:
-        with db.get_conn() as conn, conn.cursor() as cur:
+        with db.get_conn() as conn:
+            cur = conn.cursor()
             cur.execute("SELECT DISTINCT ticker FROM prices")
             existing = {row[0] for row in cur.fetchall()}
+            cur.close()
         tickers = [t for t in tickers if t not in existing]
         print(f"Skipping {len(existing)} tickers already in DB; fetching {len(tickers)} new ones.")
 
