@@ -18,7 +18,10 @@ from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
 
 from src import db, signals, execution
-from src.data import UNIVERSE, BENCHMARK, fetch_bars
+from src.data import BENCHMARK, fetch_bars
+from src.universe import get_sp500_at
+
+_FETCH_CHUNK = 50
 
 load_dotenv()
 
@@ -26,20 +29,38 @@ load_dotenv()
 TOP_N = int(os.environ.get("TOP_N", 5))
 
 
-def _refresh_prices(today: date) -> None:
-    """Fetch any missing bars from each ticker's last-stored date up to today.
+def _live_universe(today: date):
+    """Current live-trading universe.
 
-    Incremental — we never re-download history we already have. New tickers
-    (no rows yet) get backfilled from a year before today, which is plenty
-    of warm-up if the rest of the system has already been seeded.
+    Live trading should use the current S&P 500 membership, not the full
+    historical backtest union that includes delisted or long-removed names.
     """
-    for ticker in UNIVERSE + [BENCHMARK]:
+    return sorted(get_sp500_at(today))
+
+
+
+def _refresh_prices(today: date, universe) -> None:
+    """Fetch any missing bars for the live universe in batches.
+
+    We bucket tickers by missing-data start date, then batch-fetch symbols
+    together. Re-downloading a small overlap is fine because inserts are
+    conflict-safe, and this is much faster than one API call per ticker.
+    """
+    buckets = {}
+    for ticker in list(universe) + [BENCHMARK]:
         last = db.latest_price_date(ticker)
         start = (last + timedelta(days=1)) if last else (today - timedelta(days=400))
         if start >= today:
             continue
-        df = fetch_bars([ticker], start, today)
-        db.insert_prices(df)
+        buckets.setdefault(start, []).append(ticker)
+
+    for start in sorted(buckets):
+        tickers = buckets[start]
+        for i in range(0, len(tickers), _FETCH_CHUNK):
+            batch = tickers[i:i + _FETCH_CHUNK]
+            df = fetch_bars(batch, start, today)
+            if not df.empty:
+                db.insert_prices(df)
 
 
 def _parse_args():
@@ -65,9 +86,11 @@ def main():
         )
     trading_client = TradingClient(api_key, secret_key, paper=True)
 
+    live_universe = _live_universe(today)
+
     # 1-2. Refresh prices and reload the wide frame (need a long history so
     # 13 months of lookback is always available on rebalance days).
-    _refresh_prices(today)
+    _refresh_prices(today, live_universe)
     prices_wide = db.get_prices_wide(
         (today - timedelta(days=500)).isoformat(),
         today.isoformat(),
@@ -93,7 +116,7 @@ def main():
         print(f"[live] forcing rebalance on {today_ts.date()} (not the month's first trading day)")
 
     # 4. Compute target portfolio.
-    eligible = [t for t in UNIVERSE if t in prices_wide.columns]
+    eligible = [t for t in live_universe if t in prices_wide.columns]
     scores = signals.compute_momentum(prices_wide[eligible], today_ts)
     picks = signals.rank_and_select(scores, TOP_N)
     print(f"[live] picks for {today_ts.date()}: {picks}")
