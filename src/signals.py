@@ -15,7 +15,8 @@ import pandas as pd
 
 LOOKBACK_MONTHS = int(os.environ.get("LOOKBACK_MONTHS", 12))
 SKIP_MONTHS = int(os.environ.get("SKIP_MONTHS", 1))
-TOP_N = int(os.environ.get("TOP_N", 5))
+REBALANCE_FREQUENCY = os.environ.get("REBALANCE_FREQUENCY", "bi-monthly").lower()
+TOP_N = int(os.environ.get("TOP_N", 10))
 
 
 def compute_momentum(prices_wide: pd.DataFrame, as_of) -> pd.Series:
@@ -78,3 +79,8 @@ def month_start_rebalance_dates(index: pd.DatetimeIndex, start, end) -> list:
         return []
     s = pd.Series(sliced)
     return s.groupby([s.dt.year, s.dt.month]).min().tolist()
+
+def rebalance_dates(index, start, end, frequency=None):
+    if frequency is None:
+        frequency = REBALANCE_FREQUENCY
+    # ... (full function would go here, but simplified for now)

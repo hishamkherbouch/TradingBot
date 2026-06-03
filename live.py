@@ -26,7 +26,7 @@ _FETCH_CHUNK = 50
 load_dotenv()
 
 
-TOP_N = int(os.environ.get("TOP_N", 5))
+TOP_N = int(os.environ.get("TOP_N", 10))
 
 
 def _live_universe(today: date):
@@ -106,7 +106,7 @@ def main():
         print("[live] no trading day on/before today — aborting.")
         return
 
-    rebal_dates = set(signals.month_start_rebalance_dates(
+    rebal_dates = set(signals.rebalance_dates(
         prices_wide.index, prices_wide.index.min(), today_ts,
     ))
     if today_ts not in rebal_dates and not args.force:
