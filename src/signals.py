@@ -83,4 +83,33 @@ def month_start_rebalance_dates(index: pd.DatetimeIndex, start, end) -> list:
 def rebalance_dates(index, start, end, frequency=None):
     if frequency is None:
         frequency = REBALANCE_FREQUENCY
-    # ... (full function would go here, but simplified for now)
+
+    start_ts = pd.Timestamp(start)
+    end_ts = pd.Timestamp(end)
+    sliced = index[(index >= start_ts) & (index <= end_ts)]
+    if len(sliced) == 0:
+        return []
+
+    if frequency == "monthly":
+        # First trading day of each month
+        s = pd.Series(sliced)
+        return s.groupby([s.dt.year, s.dt.month]).min().tolist()
+    elif frequency == "bi-monthly":
+        # Fortnightly: pick every ~2 weeks on the index
+        # Start from first trading day, then step ~14 calendar days, snap to index
+        dates = [sliced[0]]
+        current = pd.Timestamp(sliced[0])
+        while True:
+            next_target = current + pd.DateOffset(days=14)
+            snapped = sliced.asof(next_target)
+            if pd.isna(snapped) or snapped > end_ts or snapped == dates[-1]:
+                break
+            dates.append(snapped)
+            current = snapped
+        # Also include the last trading day if it's not already there
+        if len(sliced) > 0 and sliced[-1] not in dates:
+            dates.append(sliced[-1])
+        return dates
+    else:
+        # Fallback to monthly
+        return month_start_rebalance_dates(index, start, end)
